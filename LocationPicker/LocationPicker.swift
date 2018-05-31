@@ -325,6 +325,9 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         /// The size of the pin's shadow. Set this value to zero to hide the shadow. __Default__ is __`5`__
     open var pinShadowViewDiameter: CGFloat = 5
     
+    open var defaultIconResizingBehaviour: StyleKit.ResizingBehavior = .aspectFit
+    open var defaultIconSize: CGSize = CGSize(width: 48, height: 48)
+    
     // MARK: - UI Elements
     
     public let searchBar = UISearchBar()
@@ -984,16 +987,16 @@ extension LocationPicker: UITableViewDelegate, UITableViewDataSource {
         if indexPath.row == 0 {
             cell = LocationCell(locationType: .currentLocation, locationItem: nil)
             cell.locationNameLabel.text = currentLocationText
-            cell.iconView.image = currentLocationIcon ?? StyleKit.imageOfMapPointerIcon(color: currentLocationIconColor)
+            cell.iconView.image = currentLocationIcon ?? StyleKit.imageOfMapPointerIcon(size: defaultIconSize, resizing: defaultIconResizingBehaviour, color: currentLocationIconColor)
         } else if indexPath.row > 0 && indexPath.row <= searchResultLocations.count {
             let index = indexPath.row - 1
             cell = LocationCell(locationType: .searchLocation, locationItem: searchResultLocations[index])
-            cell.iconView.image = searchResultLocationIcon ?? StyleKit.imageOfSearchIcon(color: searchResultLocationIconColor)
+            cell.iconView.image = searchResultLocationIcon ?? StyleKit.imageOfSearchIcon(size: defaultIconSize, resizing: defaultIconResizingBehaviour, color: searchResultLocationIconColor)
         } else if indexPath.row > searchResultLocations.count && indexPath.row <= alternativeLocationCount + searchResultLocations.count {
             let index = indexPath.row - 1 - searchResultLocations.count
             let locationItem = (alternativeLocations?[index] ?? dataSource?.alternativeLocation(at: index))!
             cell = LocationCell(locationType: .alternativeLocation, locationItem: locationItem)
-            cell.iconView.image = alternativeLocationIcon ?? StyleKit.imageOfPinIcon(color: alternativeLocationIconColor)
+            cell.iconView.image = alternativeLocationIcon ?? StyleKit.imageOfPinIcon(size: defaultIconSize, resizing: defaultIconResizingBehaviour, color: alternativeLocationIconColor)
         }
         cell.locationNameLabel.textColor = primaryTextColor
         cell.locationAddressLabel.textColor = secondaryTextColor

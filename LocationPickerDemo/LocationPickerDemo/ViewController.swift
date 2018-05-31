@@ -53,6 +53,8 @@ class ViewController: UIViewController, LocationPickerDelegate, LocationPickerDa
             locationPicker.dataSource = self
             locationPicker.isAlternativeLocationEditable = true
             locationPicker.isAllowArbitraryLocation = arbitraryLocationSwitch.isOn
+            locationPicker.defaultIconResizingBehaviour = .center
+            locationPicker.defaultIconSize = CGSize(width: 64, height: 64)
         }
     }
     
