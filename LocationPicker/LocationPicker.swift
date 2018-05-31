@@ -328,6 +328,8 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
     open var defaultIconResizingBehaviour: StyleKit.ResizingBehavior = .aspectFit
     open var defaultIconSize: CGSize = CGSize(width: 48, height: 48)
     open var tableViewHeaderTitle: String?
+    open var searchDelayTimerInterval: TimeInterval = 1.0
+    private var searchDelayTimer: Timer?
     
     // MARK: - UI Elements
     
@@ -508,6 +510,9 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         super.viewWillDisappear(animated)
         
         guard barButtonItems?.doneButtonItem == nil else { return }
+        
+        searchDelayTimer?.invalidate()
+        searchDelayTimer = nil
         
         if let locationItem = selectedLocationItem {
             locationDidPick(locationItem: locationItem)
@@ -911,48 +916,8 @@ extension LocationPicker: UISearchBarDelegate {
     
     public func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         if searchText.count > 0 {
-            let localSearchRequest = MKLocalSearchRequest()
-            localSearchRequest.naturalLanguageQuery = searchText
-            
-            if let currentCoordinate = locationManager.location?.coordinate {
-                localSearchRequest.region = MKCoordinateRegionMakeWithDistance(currentCoordinate, searchDistance, searchDistance)
-            } else if let defaultSearchCoordinate = defaultSearchCoordinate, CLLocationCoordinate2DIsValid(defaultSearchCoordinate) {
-                localSearchRequest.region = MKCoordinateRegionMakeWithDistance(defaultSearchCoordinate, searchDistance, searchDistance)
-            }
-            MKLocalSearch(request: localSearchRequest).start(completionHandler: { (localSearchResponse, error) -> Void in
-                guard searchText == searchBar.text else {
-                    // Ensure that the result is valid for the most recent searched text
-                    return
-                }
-                guard error == nil,
-                    let localSearchResponse = localSearchResponse, localSearchResponse.mapItems.count > 0 else {
-                        if self.isAllowArbitraryLocation {
-                            let locationItem = LocationItem(locationName: searchText)
-                            self.searchResultLocations = [locationItem]
-                        } else {
-                            self.searchResultLocations = []
-                        }
-                        self.tableView.reloadData()
-                        return
-                }
-                
-                self.searchResultLocations = localSearchResponse.mapItems.filter({ (mapItem) -> Bool in
-                    return self.shouldShowSearchResult(for: mapItem)
-                }).map({ LocationItem(mapItem: $0) })
-                
-                if self.isAllowArbitraryLocation {
-                    let locationFound = self.searchResultLocations.filter({
-                        $0.name.lowercased() == searchText.lowercased()}).count > 0
-                    
-                    if !locationFound {
-                        // Insert arbitrary location without coordinate
-                        let locationItem = LocationItem(locationName: searchText)
-                        self.searchResultLocations.insert(locationItem, at: 0)
-                    }
-                }
-                
-                self.tableView.reloadData()
-            })
+            searchDelayTimer?.invalidate()
+            searchDelayTimer = Timer.scheduledTimer(timeInterval: searchDelayTimerInterval, target: self, selector: #selector(LocationPicker.search), userInfo: ["searchText" : searchText], repeats: false)
         } else {
             selectedLocationItem = nil
             searchResultLocations.removeAll()
@@ -969,6 +934,58 @@ extension LocationPicker: UISearchBarDelegate {
         searchBar.endEditing(true)
     }
     
+    @objc func search(timer: Timer) {
+        guard let userInfo = timer.userInfo as? [AnyHashable : Any] , let searchText = userInfo["searchText"] as? String else { return }
+        
+        print("Searching for: \(searchText)")
+        
+        let localSearchRequest = MKLocalSearchRequest()
+        localSearchRequest.naturalLanguageQuery = searchText
+        
+        if let currentCoordinate = locationManager.location?.coordinate {
+            localSearchRequest.region = MKCoordinateRegionMakeWithDistance(currentCoordinate, searchDistance, searchDistance)
+        } else if let defaultSearchCoordinate = defaultSearchCoordinate, CLLocationCoordinate2DIsValid(defaultSearchCoordinate) {
+            localSearchRequest.region = MKCoordinateRegionMakeWithDistance(defaultSearchCoordinate, searchDistance, searchDistance)
+        }
+        
+        MKLocalSearch(request: localSearchRequest).start(completionHandler: { [weak self] (localSearchResponse, error) -> Void in
+            guard let `self` = self else { return }
+            
+            guard searchText == self.searchBar.text else {
+                // Ensure that the result is valid for the most recent searched text
+                return
+            }
+            guard error == nil,
+                let localSearchResponse = localSearchResponse, localSearchResponse.mapItems.count > 0 else {
+                    if self.isAllowArbitraryLocation {
+                        let locationItem = LocationItem(locationName: searchText)
+                        self.searchResultLocations = [locationItem]
+                    } else {
+                        self.searchResultLocations = []
+                    }
+                    self.tableView.reloadData()
+                    return
+            }
+            
+            self.searchResultLocations = localSearchResponse.mapItems.filter({ (mapItem) -> Bool in
+                return self.shouldShowSearchResult(for: mapItem)
+            }).map({ LocationItem(mapItem: $0) })
+            
+            if self.isAllowArbitraryLocation {
+                let locationFound = self.searchResultLocations.filter({
+                    $0.name.lowercased() == searchText.lowercased()}).count > 0
+                
+                if !locationFound {
+                    // Insert arbitrary location without coordinate
+                    let locationItem = LocationItem(locationName: searchText)
+                    self.searchResultLocations.insert(locationItem, at: 0)
+                }
+            }
+            
+            self.tableView.reloadData()
+        })
+    }
+    
 }
 
 
@@ -978,6 +995,10 @@ extension LocationPicker: UITableViewDelegate, UITableViewDataSource {
     
     public func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         return tableViewHeaderTitle
+    }
+    
+    public func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+        return tableViewHeaderTitle != nil ? 40.0 : 0.01
     }
     
     public func numberOfSections(in tableView: UITableView) -> Int {
