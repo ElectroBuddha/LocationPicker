@@ -55,6 +55,14 @@ class ViewController: UIViewController, LocationPickerDelegate, LocationPickerDa
             locationPicker.isAllowArbitraryLocation = arbitraryLocationSwitch.isOn
             locationPicker.defaultIconResizingBehaviour = .center
             locationPicker.defaultIconSize = CGSize(width: 64, height: 64)
+            locationPicker.currentLocationIcon = UIImage(named: "icon_location_pointer")?.withRenderingMode(.alwaysTemplate)
+            locationPicker.currentLocationIconColor = UIView().tintColor!
+            locationPicker.searchResultLocationIcon = UIImage(named: "icon_search")?.withRenderingMode(.alwaysTemplate)
+            locationPicker.searchResultLocationIconColor = UIView().tintColor!
+            locationPicker.alternativeLocationIcon = UIImage(named: "icon_location_pick")?.withRenderingMode(.alwaysTemplate)
+            locationPicker.alternativeLocationIconColor = UIView().tintColor!
+            locationPicker.tableViewHeaderTitle = "Quick locations:".uppercased()
+            locationPicker.tableViewBackgroundColor = UIColor.lightGray.withAlphaComponent(0.1)
         }
     }
     

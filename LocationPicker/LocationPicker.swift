@@ -327,11 +327,12 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
     
     open var defaultIconResizingBehaviour: StyleKit.ResizingBehavior = .aspectFit
     open var defaultIconSize: CGSize = CGSize(width: 48, height: 48)
+    open var tableViewHeaderTitle: String?
     
     // MARK: - UI Elements
     
     public let searchBar = UISearchBar()
-    public let tableView = UITableView()
+    public var tableView: UITableView!
     public let mapView = MKMapView()
     public let pinView = UIImageView()
     public let pinShadowView = UIView()
@@ -484,6 +485,8 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
     
     open override func viewDidLoad() {
         super.viewDidLoad()
+        
+        tableView = UITableView(frame: .zero, style: tableViewHeaderTitle != nil ? .grouped : .plain)
         
         longitudinalDistance = defaultLongitudinalDistance
         
@@ -973,6 +976,10 @@ extension LocationPicker: UISearchBarDelegate {
 
 extension LocationPicker: UITableViewDelegate, UITableViewDataSource {
     
+    public func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        return tableViewHeaderTitle
+    }
+    
     public func numberOfSections(in tableView: UITableView) -> Int {
         return 1
     }
@@ -988,16 +995,23 @@ extension LocationPicker: UITableViewDelegate, UITableViewDataSource {
             cell = LocationCell(locationType: .currentLocation, locationItem: nil)
             cell.locationNameLabel.text = currentLocationText
             cell.iconView.image = currentLocationIcon ?? StyleKit.imageOfMapPointerIcon(size: defaultIconSize, resizing: defaultIconResizingBehaviour, color: currentLocationIconColor)
+            cell.iconView.tintColor = currentLocationIconColor
         } else if indexPath.row > 0 && indexPath.row <= searchResultLocations.count {
             let index = indexPath.row - 1
             cell = LocationCell(locationType: .searchLocation, locationItem: searchResultLocations[index])
             cell.iconView.image = searchResultLocationIcon ?? StyleKit.imageOfSearchIcon(size: defaultIconSize, resizing: defaultIconResizingBehaviour, color: searchResultLocationIconColor)
+            cell.iconView.tintColor = searchResultLocationIconColor
         } else if indexPath.row > searchResultLocations.count && indexPath.row <= alternativeLocationCount + searchResultLocations.count {
             let index = indexPath.row - 1 - searchResultLocations.count
             let locationItem = (alternativeLocations?[index] ?? dataSource?.alternativeLocation(at: index))!
             cell = LocationCell(locationType: .alternativeLocation, locationItem: locationItem)
             cell.iconView.image = alternativeLocationIcon ?? StyleKit.imageOfPinIcon(size: defaultIconSize, resizing: defaultIconResizingBehaviour, color: alternativeLocationIconColor)
+            cell.iconView.tintColor = alternativeLocationIconColor
         }
+        
+        cell.backgroundColor = .white
+        cell.iconView.contentMode = .center
+        
         cell.locationNameLabel.textColor = primaryTextColor
         cell.locationAddressLabel.textColor = secondaryTextColor
         
