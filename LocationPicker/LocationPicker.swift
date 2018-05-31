@@ -378,6 +378,12 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         }
     }
     
+    public lazy var mapViewContainer: UIView = {
+        let view = UIView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
+    
     
     // MARK: Customs
     
@@ -648,8 +654,8 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         case .began:
             isMapViewCenterChanged = true
             selectedLocationItem = nil
+            showSearchBarActivityIndicator(true)
             geocoder.cancelGeocode()
-            
             searchBar.text = nil
             if let indexPathForSelectedRow = tableView.indexPathForSelectedRow {
                 tableView.deselectRow(at: indexPathForSelectedRow, animated: true)
@@ -716,8 +722,12 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
     }
     
     fileprivate func reverseGeocodeLocation(_ location: CLLocation) {
+        showSearchBarActivityIndicator(true)
         geocoder.cancelGeocode()
-        geocoder.reverseGeocodeLocation(location, completionHandler: { (placemarks, error) -> Void in
+        geocoder.reverseGeocodeLocation(location, completionHandler: { [weak self] (placemarks, error) -> Void in
+            guard let `self` = self else { return }
+            self.showSearchBarActivityIndicator(false)
+            
             guard error == nil else {
                 print(error!)
                 return
@@ -916,6 +926,7 @@ extension LocationPicker: UISearchBarDelegate {
     
     public func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         if searchText.count > 0 {
+            showSearchBarActivityIndicator(false)
             searchDelayTimer?.invalidate()
             searchDelayTimer = Timer.scheduledTimer(timeInterval: searchDelayTimerInterval, target: self, selector: #selector(LocationPicker.search), userInfo: ["searchText" : searchText], repeats: false)
         } else {
@@ -936,9 +947,7 @@ extension LocationPicker: UISearchBarDelegate {
     
     @objc func search(timer: Timer) {
         guard let userInfo = timer.userInfo as? [AnyHashable : Any] , let searchText = userInfo["searchText"] as? String else { return }
-        
-        print("Searching for: \(searchText)")
-        
+ 
         let localSearchRequest = MKLocalSearchRequest()
         localSearchRequest.naturalLanguageQuery = searchText
         
@@ -948,8 +957,12 @@ extension LocationPicker: UISearchBarDelegate {
             localSearchRequest.region = MKCoordinateRegionMakeWithDistance(defaultSearchCoordinate, searchDistance, searchDistance)
         }
         
+        showSearchBarActivityIndicator(true)
+
         MKLocalSearch(request: localSearchRequest).start(completionHandler: { [weak self] (localSearchResponse, error) -> Void in
             guard let `self` = self else { return }
+
+            self.showSearchBarActivityIndicator(false)
             
             guard searchText == self.searchBar.text else {
                 // Ensure that the result is valid for the most recent searched text
@@ -984,6 +997,35 @@ extension LocationPicker: UISearchBarDelegate {
             
             self.tableView.reloadData()
         })
+    }
+    
+    private func showSearchBarActivityIndicator(_ visible: Bool) {
+        func textField() -> UITextField? {
+            let subViews = searchBar.subviews.flatMap { $0.subviews }
+            guard let textField = (subViews.filter { $0 is UITextField }).first as? UITextField else {
+                return nil
+            }
+            return textField
+        }
+        
+        func activityIndicator() -> UIActivityIndicatorView? {
+            return textField()?.leftView?.subviews.compactMap{ $0 as? UIActivityIndicatorView }.first
+        }
+        
+        if visible {
+            if activityIndicator() == nil {
+                let newActivityIndicator = UIActivityIndicatorView(activityIndicatorStyle: .gray)
+                newActivityIndicator.transform = CGAffineTransform(scaleX: 0.7, y: 0.7)
+                newActivityIndicator.startAnimating()
+                newActivityIndicator.backgroundColor = UIColor.white
+                textField()?.leftView?.addSubview(newActivityIndicator)
+                let leftViewSize = textField()?.leftView?.frame.size ?? CGSize.zero
+                newActivityIndicator.center = CGPoint(x: leftViewSize.width/2, y: leftViewSize.height/2)
+            }
+        }
+        else {
+            activityIndicator()?.removeFromSuperview()
+        }
     }
     
 }
