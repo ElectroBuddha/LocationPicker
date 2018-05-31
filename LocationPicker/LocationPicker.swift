@@ -361,7 +361,7 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
     private var mapViewHeightConstraint: NSLayoutConstraint!
     private var mapViewHeight: CGFloat {
         get {
-            return view.frame.width / 3 * 2
+            return (view.frame.height / 2) - (self.navigationController?.navigationBar.frame.size.height ?? 0.0) - searchBar.frame.size.height //return view.frame.width / 3 * 2
         }
     }
     
@@ -508,6 +508,10 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         }
     }
     
+    open override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        mapViewHeightConstraint.constant = mapViewHeight
+    }
     
     // MARK: Initializations
     
@@ -584,7 +588,7 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
             mapView.topAnchor.constraint(equalTo: tableView.bottomAnchor).isActive = true
             mapView.leadingAnchor.constraint(equalTo: tableView.leadingAnchor).isActive = true
             mapView.trailingAnchor.constraint(equalTo: tableView.trailingAnchor).isActive = true
-            mapView.bottomAnchor.constraint(equalTo: bottomLayoutGuide.topAnchor).isActive = true
+            mapView.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true //mapView.bottomAnchor.constraint(equalTo: bottomLayoutGuide.topAnchor).isActive = true
             
             mapViewHeightConstraint = mapView.heightAnchor.constraint(equalToConstant: 0)
             mapViewHeightConstraint.isActive = true
@@ -609,7 +613,7 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
             NSLayoutConstraint(item: mapView, attribute: .top, relatedBy: .equal, toItem: tableView, attribute: .bottom, multiplier: 1, constant: 0).isActive = true
             NSLayoutConstraint(item: mapView, attribute: .leading, relatedBy: .equal, toItem: tableView, attribute: .leading, multiplier: 1, constant: 0).isActive = true
             NSLayoutConstraint(item: mapView, attribute: .trailing, relatedBy: .equal, toItem: tableView, attribute: .trailing, multiplier: 1, constant: 0).isActive = true
-            NSLayoutConstraint(item: mapView, attribute: .bottom, relatedBy: .equal, toItem: bottomLayoutGuide, attribute: .top, multiplier: 1, constant: 0).isActive = true
+            NSLayoutConstraint(item: mapView, attribute: .bottom, relatedBy: .equal, toItem: view, attribute: .bottom, multiplier: 1, constant: 0).isActive = true //NSLayoutConstraint(item: mapView, attribute: .bottom, relatedBy: .equal, toItem: bottomLayoutGuide, attribute: .top, multiplier: 1, constant: 0).isActive = true
             
             mapViewHeightConstraint = NSLayoutConstraint(item: mapView, attribute: .height, relatedBy: .equal, toItem: nil, attribute: .height, multiplier: 1, constant: 0)
             mapViewHeightConstraint.isActive = true
