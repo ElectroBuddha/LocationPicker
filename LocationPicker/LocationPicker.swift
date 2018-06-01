@@ -327,9 +327,15 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
     
     open var defaultIconResizingBehaviour: StyleKit.ResizingBehavior = .aspectFit
     open var defaultIconSize: CGSize = CGSize(width: 48, height: 48)
-    open var tableViewHeaderTitle: String?
     open var searchDelayTimerInterval: TimeInterval = 1.0
     private var searchDelayTimer: Timer?
+    open var mapViewHeaderTitle: String = "Select from the map".uppercased()
+    open var mapViewHeaderSubtitle: String = "zoom and move the map to select the location"
+    open var searchResultSectionTitle: String = "Search results".uppercased()
+    open var currentLocationSectionTitle: String = "My location".uppercased()
+    open var alternativeLocationsSectionTitle: String = "Quick locations:".uppercased()
+    
+    let searchController = UISearchController(searchResultsController: nil)
     
     // MARK: - UI Elements
     
@@ -338,6 +344,10 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
     public let mapView = MKMapView()
     public let pinView = UIImageView()
     public let pinShadowView = UIView()
+    
+    lazy var mapViewHeaderView: MapViewHeaderView = {
+        return MapViewHeaderView(title: mapViewHeaderTitle, subtitle: mapViewHeaderSubtitle, separatorColor: tableView.separatorColor!.withAlphaComponent(0.5))
+    }()
     
     open private(set) var barButtonItems: (doneButtonItem: UIBarButtonItem, cancelButtonItem: UIBarButtonItem)?
     
@@ -377,13 +387,7 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
             return pinView.image!.size.height
         }
     }
-    
-    public lazy var mapViewContainer: UIView = {
-        let view = UIView()
-        view.translatesAutoresizingMaskIntoConstraints = false
-        return view
-    }()
-    
+
     
     // MARK: Customs
     
@@ -494,22 +498,57 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
     open override func viewDidLoad() {
         super.viewDidLoad()
         
-        tableView = UITableView(frame: .zero, style: tableViewHeaderTitle != nil ? .grouped : .plain)
+        tableView = UITableView(frame: .zero, style: .grouped)
         
         longitudinalDistance = defaultLongitudinalDistance
         
         setupLocationManager()
         setupViews()
         layoutViews()
+        
+//        searchController.searchResultsUpdater = self
+//        searchController.hidesNavigationBarDuringPresentation = false
+//        //searchController.delegate = self
+//        searchController.searchBar.placeholder = searchBarPlaceholder
+//        searchController.dimsBackgroundDuringPresentation = false
+//        searchController.searchBar.sizeToFit()
+//
+//        if #available(iOS 9.1, *) {
+//            searchController.obscuresBackgroundDuringPresentation = false
+//        } else {
+//
+//        }
+
+//        if #available(iOS 11.0, *) {
+//            navigationItem.searchController = searchController
+//        } else {
+//            tableView.tableHeaderView = searchController.searchBar
+//        }
+
+        
+        definesPresentationContext = true
+        
+    }
+    
+    open override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        if #available(iOS 11.0, *) {
+            navigationItem.hidesSearchBarWhenScrolling = false
+        }
     }
     
     open override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         
-        if let index = preselectedIndex, index < 1 + searchResultLocations.count + alternativeLocationCount {
-            tableView.selectRow(at: IndexPath(row: index, section: 0), animated: true, scrollPosition: .none)
-            tableView(tableView, didSelectRowAt: IndexPath(row: index, section: 0))
+        if let index = preselectedIndex, index < alternativeLocationCount {
+            tableView.selectRow(at: IndexPath(row: index, section: 2), animated: true, scrollPosition: .none)
+            tableView(tableView, didSelectRowAt: IndexPath(row: index, section: 2))
         }
+        
+        if #available(iOS 11.0, *) {
+            navigationItem.hidesSearchBarWhenScrolling = true
+        }
+
     }
     
     open override func viewWillDisappear(_ animated: Bool) {
@@ -545,16 +584,35 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
     
     private func setupViews() {
         view.backgroundColor = #colorLiteral(red: 1, green: 1, blue: 1, alpha: 1)    // the background color of view needs to be set because this color would affect the color of navigation bar if it is translucent.
+
+        tableView.delegate = self
+        tableView.dataSource = self
+        tableView.keyboardDismissMode = .onDrag
+        tableView.backgroundColor = tableViewBackgroundColor
+        tableView.contentInset.bottom = 50.0
+        // Prevent gap between sections
+        tableView.sectionHeaderHeight = 0.0
+        tableView.sectionFooterHeight = 0.0
         
         searchBar.delegate = self
         searchBar.placeholder = searchBarPlaceholder
         let textFieldInsideSearchBar = searchBar.value(forKey: "searchField") as! UITextField
         textFieldInsideSearchBar.textColor = primaryTextColor
         
-        tableView.delegate = self
-        tableView.dataSource = self
-        tableView.keyboardDismissMode = .onDrag
-        tableView.backgroundColor = tableViewBackgroundColor
+        searchBar.backgroundImage = UIImage()
+        searchBar.backgroundColor = tableView.backgroundColor
+        
+        let searchBarSubViews = searchBar.subviews.flatMap { $0.subviews }
+        if let searchBarTextField = (searchBarSubViews.filter { $0 is UITextField }).first as? UITextField {
+            searchBarTextField.layer.borderColor = tableView.separatorColor?.withAlphaComponent(0.5).cgColor
+            searchBarTextField.layer.borderWidth = 0.7
+            searchBarTextField.layer.cornerRadius = 10.0
+            
+            searchBarTextField.layer.shadowColor  = UIColor.black.cgColor
+            searchBarTextField.layer.shadowRadius  = 3.0
+            searchBarTextField.layer.shadowOpacity = 0.09
+            searchBarTextField.layer.shadowOffset  = CGSize(width: 0.0, height: 3.0)
+        }
         
         mapView.isZoomEnabled = isMapViewZoomEnabled
         mapView.isRotateEnabled = false
@@ -564,6 +622,7 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         mapView.delegate = self
         
         pinView.image = pinImage ?? StyleKit.imageOfPinIconFilled(color: pinColor)
+        pinView.tintColor = pinColor
         
         pinShadowView.layer.cornerRadius = pinShadowViewDiameter / 2
         pinShadowView.clipsToBounds = false
@@ -582,8 +641,10 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         view.addSubview(searchBar)
         view.addSubview(tableView)
         view.addSubview(mapView)
+        view.addSubview(mapViewHeaderView)
         mapView.addSubview(pinShadowView)
         mapView.addSubview(pinView)
+
     }
     
     private func layoutViews() {
@@ -598,14 +659,21 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
             searchBar.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
             searchBar.trailingAnchor.constraint(equalTo: view.trailingAnchor).isActive = true
             
+            //searchBar.alpha = 0.0
+ 
             tableView.topAnchor.constraint(equalTo: searchBar.bottomAnchor).isActive = true
-            tableView.leadingAnchor.constraint(equalTo: searchBar.leadingAnchor).isActive = true
-            tableView.trailingAnchor.constraint(equalTo: searchBar.trailingAnchor).isActive = true
+            //tableView.topAnchor.constraint(equalTo: topLayoutGuide.bottomAnchor).isActive = true
+            tableView.leadingAnchor.constraint(equalTo: self.view.leadingAnchor).isActive = true
+            tableView.trailingAnchor.constraint(equalTo: self.view.trailingAnchor).isActive = true
             
             mapView.topAnchor.constraint(equalTo: tableView.bottomAnchor).isActive = true
             mapView.leadingAnchor.constraint(equalTo: tableView.leadingAnchor).isActive = true
             mapView.trailingAnchor.constraint(equalTo: tableView.trailingAnchor).isActive = true
             mapView.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true //mapView.bottomAnchor.constraint(equalTo: bottomLayoutGuide.topAnchor).isActive = true
+            
+            mapViewHeaderView.bottomAnchor.constraint(equalTo: mapView.topAnchor).isActive = true
+            mapViewHeaderView.leadingAnchor.constraint(equalTo: mapView.leadingAnchor).isActive = true
+            mapViewHeaderView.trailingAnchor.constraint(equalTo: mapView.trailingAnchor).isActive = true
             
             mapViewHeightConstraint = mapView.heightAnchor.constraint(equalToConstant: 0)
             mapViewHeightConstraint.isActive = true
@@ -644,6 +712,9 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
             NSLayoutConstraint(item: pinShadowView, attribute: .width, relatedBy: .equal, toItem: nil, attribute: .width, multiplier: 1, constant: pinShadowViewDiameter).isActive = true
             NSLayoutConstraint(item: pinShadowView, attribute: .height, relatedBy: .equal, toItem: nil, attribute: .height, multiplier: 1, constant: pinShadowViewDiameter).isActive = true
         }
+        
+//        searchBar.frame = CGRect(x: searchBar.frame.origin.x, y: searchBar.frame.origin.y, width: tableView.frame.size.width, height: 64.0)
+//        tableView.tableHeaderView = searchBar
     }
     
     
@@ -652,11 +723,16 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
     @objc func panGestureInMapViewDidRecognize(panGestureRecognizer: UIPanGestureRecognizer) {
         switch(panGestureRecognizer.state) {
         case .began:
+            ////
+            // Unfocus searchBar text field when map moved
+            searchBar.endEditing(true)
+            //
+            
             isMapViewCenterChanged = true
             selectedLocationItem = nil
-            showSearchBarActivityIndicator(true)
+            //showSearchBarActivityIndicator(true)
+            //searchBar.text = nil
             geocoder.cancelGeocode()
-            searchBar.text = nil
             if let indexPathForSelectedRow = tableView.indexPathForSelectedRow {
                 tableView.deselectRow(at: indexPathForSelectedRow, animated: true)
             }
@@ -711,6 +787,7 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
     public func selectLocationItem(_ locationItem: LocationItem) {
         selectedLocationItem = locationItem
         searchBar.text = locationItem.name
+        mapViewHeaderView.setSubtitleText(locationItem.name)
         if let coordinate = locationItem.coordinate {
             showMapView(withCenter: coordinateObject(fromTuple: coordinate), distance: longitudinalDistance)
         } else {
@@ -722,11 +799,14 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
     }
     
     fileprivate func reverseGeocodeLocation(_ location: CLLocation) {
+        searchBar.text = nil
         showSearchBarActivityIndicator(true)
+        mapViewHeaderView.isActivityIndicatorActive = true
         geocoder.cancelGeocode()
         geocoder.reverseGeocodeLocation(location, completionHandler: { [weak self] (placemarks, error) -> Void in
             guard let `self` = self else { return }
             self.showSearchBarActivityIndicator(false)
+            self.mapViewHeaderView.isActivityIndicatorActive = false
             
             guard error == nil else {
                 print(error!)
@@ -919,6 +999,15 @@ extension LocationPicker {
     
 }
 
+extension LocationPicker: UISearchControllerDelegate {
+    
+}
+
+extension LocationPicker: UISearchResultsUpdating {
+    public func updateSearchResults(for searchController: UISearchController) {
+        // TODO
+    }
+}
 
 // MARK: Search Bar Delegate
 
@@ -927,6 +1016,7 @@ extension LocationPicker: UISearchBarDelegate {
     public func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         if searchText.count > 0 {
             showSearchBarActivityIndicator(false)
+            mapViewHeaderView.isActivityIndicatorActive = false
             searchDelayTimer?.invalidate()
             searchDelayTimer = Timer.scheduledTimer(timeInterval: searchDelayTimerInterval, target: self, selector: #selector(LocationPicker.search), userInfo: ["searchText" : searchText], repeats: false)
         } else {
@@ -1035,38 +1125,73 @@ extension LocationPicker: UISearchBarDelegate {
 
 extension LocationPicker: UITableViewDelegate, UITableViewDataSource {
     
+    public func scrollViewDidScroll(_ scrollView: UIScrollView) {
+//        print("contentOffset: \(scrollView.contentOffset.y); searchBarOrigin: \(searchBar.frame.origin.y)")
+//
+//        var searchBarOffsetY: CGFloat = 0.0
+//
+//        if scrollView.contentOffset.y < 0 {
+//            //searchBarOffsetY = scrollView.contentOffset.y * (-1)
+//            searchBarOffsetY = 0.0
+//        }
+//
+//        searchBar.frame = CGRect(x: searchBar.frame.origin.x, y: searchBarOffsetY, width: searchBar.frame.size.width, height: searchBar.frame.size.height)
+//        //searchBar.layoutIfNeeded()
+//        print("searchBar.frame \(searchBar.frame)")
+    }
+    
     public func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        return tableViewHeaderTitle
+        switch section {
+        case 0:
+            return searchResultLocations.count > 0 ? searchResultSectionTitle : nil
+        case 1:
+            return currentLocationSectionTitle
+        default:
+            return alternativeLocationCount > 0 ? alternativeLocationsSectionTitle : nil
+        }
     }
     
     public func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
-        return tableViewHeaderTitle != nil ? 40.0 : 0.01
+        switch section {
+        case 0:
+            return searchResultLocations.count > 0 ? 40.0 : 0.01
+        case 1:
+            return 40.0
+        default:
+            return alternativeLocationCount > 0 ? 40.0 : 0.01
+        }
     }
     
     public func numberOfSections(in tableView: UITableView) -> Int {
-        return 1
+        return 3
     }
     
     public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return 1 + searchResultLocations.count + alternativeLocationCount
+        switch section {
+        case 0:
+            return searchResultLocations.count
+        case 1:
+            return 1
+        default:
+            return alternativeLocationCount
+        }
     }
     
     public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         var cell: LocationCell!
         
-        if indexPath.row == 0 {
+        switch indexPath.section {
+        case 0:
+            cell = LocationCell(locationType: .searchLocation, locationItem: searchResultLocations[indexPath.row])
+            cell.iconView.image = searchResultLocationIcon ?? StyleKit.imageOfSearchIcon(size: defaultIconSize, resizing: defaultIconResizingBehaviour, color: searchResultLocationIconColor)
+            cell.iconView.tintColor = searchResultLocationIconColor
+        case 1:
             cell = LocationCell(locationType: .currentLocation, locationItem: nil)
             cell.locationNameLabel.text = currentLocationText
             cell.iconView.image = currentLocationIcon ?? StyleKit.imageOfMapPointerIcon(size: defaultIconSize, resizing: defaultIconResizingBehaviour, color: currentLocationIconColor)
             cell.iconView.tintColor = currentLocationIconColor
-        } else if indexPath.row > 0 && indexPath.row <= searchResultLocations.count {
-            let index = indexPath.row - 1
-            cell = LocationCell(locationType: .searchLocation, locationItem: searchResultLocations[index])
-            cell.iconView.image = searchResultLocationIcon ?? StyleKit.imageOfSearchIcon(size: defaultIconSize, resizing: defaultIconResizingBehaviour, color: searchResultLocationIconColor)
-            cell.iconView.tintColor = searchResultLocationIconColor
-        } else if indexPath.row > searchResultLocations.count && indexPath.row <= alternativeLocationCount + searchResultLocations.count {
-            let index = indexPath.row - 1 - searchResultLocations.count
-            let locationItem = (alternativeLocations?[index] ?? dataSource?.alternativeLocation(at: index))!
+        default:
+            let locationItem = (alternativeLocations?[indexPath.row] ?? dataSource?.alternativeLocation(at: indexPath.row))!
             cell = LocationCell(locationType: .alternativeLocation, locationItem: locationItem)
             cell.iconView.image = alternativeLocationIcon ?? StyleKit.imageOfPinIcon(size: defaultIconSize, resizing: defaultIconResizingBehaviour, color: alternativeLocationIconColor)
             cell.iconView.tintColor = alternativeLocationIconColor
@@ -1085,14 +1210,13 @@ extension LocationPicker: UITableViewDelegate, UITableViewDataSource {
         searchBar.endEditing(true)
         longitudinalDistance = defaultLongitudinalDistance
         
-        if indexPath.row == 0 {
+        if indexPath.section == 1 {
             switch CLLocationManager.authorizationStatus() {
             case .notDetermined:
                 locationManager.requestWhenInUseAuthorization()
             case .denied:
                 locationDidDeny(locationPicker: self)
                 tableView.deselectRow(at: indexPath, animated: true)
-                
             default:
                 break
             }
@@ -1100,7 +1224,8 @@ extension LocationPicker: UITableViewDelegate, UITableViewDataSource {
             if let currentLocation = locationManager.location {
                 reverseGeocodeLocation(currentLocation)
             }
-        } else {
+        }
+        else {
             let cell = tableView.cellForRow(at: indexPath) as! LocationCell
             let locationItem = cell.locationItem!
             let coordinate = locationItem.coordinate
@@ -1110,22 +1235,18 @@ extension LocationPicker: UITableViewDelegate, UITableViewDataSource {
                 selectLocationItem(locationItem)
             }
         }
-        
     }
     
     public func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
-        return isAlternativeLocationEditable && indexPath.row > searchResultLocations.count && indexPath.row <= alternativeLocationCount + searchResultLocations.count
+        return isAlternativeLocationEditable && indexPath.section == 2
     }
     
     public func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
         if editingStyle == .delete {
             let cell = tableView.cellForRow(at: indexPath) as! LocationCell
             let locationItem = cell.locationItem!
-            let index = indexPath.row - 1 - searchResultLocations.count
-            alternativeLocations?.remove(at: index)
-            
+            alternativeLocations?.remove(at: indexPath.row)
             alternativeLocationDidDelete(locationItem: locationItem)
-            
             tableView.deleteRows(at: [indexPath], with: .automatic)
         }
     }
@@ -1175,15 +1296,213 @@ extension LocationPicker: CLLocationManagerDelegate {
     public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         print(error)
     }
-    
+ 
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        if (tableView.indexPathForSelectedRow as NSIndexPath?)?.row == 0 {
+        if (tableView.indexPathForSelectedRow as NSIndexPath?)?.section == 1 {
             let currentLocation = locations[0]
             reverseGeocodeLocation(currentLocation)
             guard #available(iOS 9.0, *) else {
                 locationManager.stopUpdatingLocation()
                 return
             }
+        }
+    }
+    
+}
+
+//
+// Custom view used as mapView header view
+//
+
+class MapViewHeaderView: UIView {
+    
+    lazy var titleLabel: UILabel = {
+        let label = UILabel()
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.numberOfLines = 1
+        label.textAlignment = .center
+        label.lineBreakMode = .byTruncatingTail
+        label.textColor = .black
+        label.adjustsFontSizeToFitWidth = true
+        if #available(iOS 8.2, *) {
+            label.font = UIFont.systemFont(ofSize: 11.0, weight: .medium)
+        }
+        else {
+            label.font = UIFont.systemFont(ofSize: 11)
+        }
+        label.text = title
+        return label
+    }()
+    
+    lazy var subtitleLabel: UILabel = {
+        let label = UILabel()
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.numberOfLines = 1
+        label.textAlignment = .center
+        label.lineBreakMode = .byTruncatingTail
+        label.textColor = .gray
+        label.adjustsFontSizeToFitWidth = true
+        if #available(iOS 8.2, *) {
+            label.font = UIFont.systemFont(ofSize: 14.0, weight: .regular)
+        }
+        else {
+            label.font = UIFont.systemFont(ofSize: 14)
+        }
+        label.text = subtitle
+        return label
+    }()
+    
+    lazy var activityIndicatorView: UIActivityIndicatorView = {
+        let view = UIActivityIndicatorView(activityIndicatorStyle: .gray)
+        view.transform = CGAffineTransform(scaleX: 0.7, y: 0.7)
+        view.hidesWhenStopped = true
+        view.translatesAutoresizingMaskIntoConstraints = false
+        if let activityIndicatorColor = activityIndicatorColor {
+            view.color = activityIndicatorColor
+        }
+        return view
+    }()
+    
+    fileprivate func makeSeparatorView() -> UIView {
+        let view = UIView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.backgroundColor = separatorColor
+        if #available(iOS 9, *) {
+            view.heightAnchor.constraint(equalToConstant: 0.7).isActive = true
+        }
+        else {
+            NSLayoutConstraint(item: view, attribute: .height, relatedBy: .equal, toItem: nil, attribute: .height, multiplier: 1, constant: 0.7).isActive = true
+        }
+        return view
+    }
+    
+    fileprivate func makeBlurView() -> UIView {
+        var blur: UIBlurEffect!
+        if #available(iOS 10.0, *) {
+            blur = UIBlurEffect(style: UIBlurEffectStyle.light) //prominent,regular,extraLight, light, dark
+        } else {
+            blur = UIBlurEffect(style: UIBlurEffectStyle.extraLight) //extraLight, light, dark
+        }
+        
+        let view: UIView!
+        
+        if #available(iOS 10.0, *) {
+            view = UIVisualEffectView(effect: blur)
+            view.backgroundColor = bgColor.withAlphaComponent(0.8)
+        }
+        else {
+            view = UIView()
+            view.backgroundColor = bgColor
+        }
+        
+        view.translatesAutoresizingMaskIntoConstraints = false
+        
+        return view
+    }
+
+    fileprivate var bgColor: UIColor!
+    fileprivate var separatorColor: UIColor!
+    fileprivate var activityIndicatorColor: UIColor?
+    fileprivate var title: String!
+    fileprivate var subtitle: String?
+
+    init(title: String, subtitle: String? = " ", backgroundColor: UIColor = .white, separatorColor: UIColor = UIColor(red: 232/255, green: 232/255, blue: 232/255, alpha: 1.0), activityIndicatorColor: UIColor? = nil) {
+        super.init(frame: .zero)
+        self.title = title
+        self.subtitle = subtitle
+        self.bgColor = backgroundColor
+        self.separatorColor = separatorColor
+        self.activityIndicatorColor = activityIndicatorColor
+        setupViews()
+    }
+    
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    fileprivate func setupViews() {
+        self.backgroundColor = .clear //bgColor
+        self.translatesAutoresizingMaskIntoConstraints = false
+        
+        let blurView = makeBlurView()
+        let topSeparatorView = makeSeparatorView()
+        let bottomSeparatorView = makeSeparatorView()
+        
+        self.addSubview(blurView)
+        self.addSubview(topSeparatorView)
+        self.addSubview(bottomSeparatorView)
+        self.addSubview(titleLabel)
+        self.addSubview(subtitleLabel)
+        self.addSubview(activityIndicatorView)
+  
+        if #available(iOS 9, *) {
+            blurView.topAnchor.constraint(equalTo: self.topAnchor).isActive = true
+            blurView.leadingAnchor.constraint(equalTo: self.leadingAnchor).isActive = true
+            blurView.trailingAnchor.constraint(equalTo: self.trailingAnchor).isActive = true
+            blurView.bottomAnchor.constraint(equalTo: self.bottomAnchor).isActive = true
+            
+            topSeparatorView.topAnchor.constraint(equalTo: self.topAnchor).isActive = true
+            topSeparatorView.leadingAnchor.constraint(equalTo: self.leadingAnchor).isActive = true
+            topSeparatorView.trailingAnchor.constraint(equalTo: self.trailingAnchor).isActive = true
+            
+            titleLabel.topAnchor.constraint(equalTo: self.topAnchor, constant: 6.0).isActive = true
+            titleLabel.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 5.0).isActive = true
+            titleLabel.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -5.0).isActive = true
+            
+            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 1.0).isActive = true
+            subtitleLabel.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 5.0).isActive = true
+            subtitleLabel.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -5.0).isActive = true
+            subtitleLabel.bottomAnchor.constraint(equalTo: self.bottomAnchor, constant: -5.0).isActive = true
+            
+            activityIndicatorView.centerXAnchor.constraint(equalTo: subtitleLabel.centerXAnchor).isActive = true
+            activityIndicatorView.centerYAnchor.constraint(equalTo: subtitleLabel.centerYAnchor).isActive = true
+      
+            bottomSeparatorView.leadingAnchor.constraint(equalTo: self.leadingAnchor).isActive = true
+            bottomSeparatorView.trailingAnchor.constraint(equalTo: self.trailingAnchor).isActive = true
+            bottomSeparatorView.bottomAnchor.constraint(equalTo: self.bottomAnchor).isActive = true
+        }
+        else {
+            NSLayoutConstraint(item: blurView, attribute: .top, relatedBy: .equal, toItem: self, attribute: .top, multiplier: 1, constant: 0).isActive = true
+            NSLayoutConstraint(item: blurView, attribute: .leading, relatedBy: .equal, toItem: self, attribute: .leading, multiplier: 1, constant: 0).isActive = true
+            NSLayoutConstraint(item: blurView, attribute: .trailing, relatedBy: .equal, toItem: self, attribute: .trailing, multiplier: 1, constant: 0).isActive = true
+            NSLayoutConstraint(item: blurView, attribute: .bottom, relatedBy: .equal, toItem: self, attribute: .bottom, multiplier: 1, constant: 0.0).isActive = true
+            
+            NSLayoutConstraint(item: topSeparatorView, attribute: .top, relatedBy: .equal, toItem: self, attribute: .top, multiplier: 1, constant: 0).isActive = true
+            NSLayoutConstraint(item: topSeparatorView, attribute: .leading, relatedBy: .equal, toItem: self, attribute: .leading, multiplier: 1, constant: 0).isActive = true
+            NSLayoutConstraint(item: topSeparatorView, attribute: .trailing, relatedBy: .equal, toItem: self, attribute: .trailing, multiplier: 1, constant: 0).isActive = true
+            
+            NSLayoutConstraint(item: titleLabel, attribute: .top, relatedBy: .equal, toItem: self, attribute: .top, multiplier: 1, constant: 6.0).isActive = true
+            NSLayoutConstraint(item: titleLabel, attribute: .leading, relatedBy: .equal, toItem: self, attribute: .leading, multiplier: 1, constant: 5.0).isActive = true
+            NSLayoutConstraint(item: titleLabel, attribute: .trailing, relatedBy: .equal, toItem: self, attribute: .trailing, multiplier: 1, constant: -5.0).isActive = true
+            
+            NSLayoutConstraint(item: subtitleLabel, attribute: .top, relatedBy: .equal, toItem: titleLabel, attribute: .bottom, multiplier: 1, constant: 1.0).isActive = true
+            NSLayoutConstraint(item: subtitleLabel, attribute: .leading, relatedBy: .equal, toItem: self, attribute: .leading, multiplier: 1, constant: 5.0).isActive = true
+            NSLayoutConstraint(item: subtitleLabel, attribute: .trailing, relatedBy: .equal, toItem: self, attribute: .trailing, multiplier: 1, constant: -5.0).isActive = true
+            NSLayoutConstraint(item: subtitleLabel, attribute: .bottom, relatedBy: .equal, toItem: self, attribute: .bottom, multiplier: 1, constant: -5.0).isActive = true
+            
+            NSLayoutConstraint(item: activityIndicatorView, attribute: .centerX, relatedBy: .equal, toItem: subtitleLabel, attribute: .centerX, multiplier: 1, constant: 0).isActive = true
+            NSLayoutConstraint(item: activityIndicatorView, attribute: .centerY, relatedBy: .equal, toItem: subtitleLabel, attribute: .centerY, multiplier: 1, constant: 0).isActive = true
+  
+            NSLayoutConstraint(item: bottomSeparatorView, attribute: .leading, relatedBy: .equal, toItem: self, attribute: .leading, multiplier: 1, constant: 0.0).isActive = true
+            NSLayoutConstraint(item: bottomSeparatorView, attribute: .trailing, relatedBy: .equal, toItem: self, attribute: .trailing, multiplier: 1, constant: 0.0).isActive = true
+            NSLayoutConstraint(item: bottomSeparatorView, attribute: .bottom, relatedBy: .equal, toItem: self, attribute: .bottom, multiplier: 1, constant: 0.0).isActive = true
+        }
+        
+        titleLabel.text = title
+    }
+    
+    func setSubtitleText(_ text: String?) {
+        subtitleLabel.text = text
+    }
+    
+    var isActivityIndicatorActive: Bool {
+        get {
+            return activityIndicatorView.isAnimating
+        }
+        
+        set {
+            newValue ? activityIndicatorView.startAnimating() : activityIndicatorView.stopAnimating()
+            subtitleLabel.alpha = newValue ? 0.0 : 1.0
         }
     }
     

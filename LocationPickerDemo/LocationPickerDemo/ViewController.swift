@@ -61,8 +61,7 @@ class ViewController: UIViewController, LocationPickerDelegate, LocationPickerDa
             locationPicker.searchResultLocationIconColor = UIView().tintColor!
             locationPicker.alternativeLocationIcon = UIImage(named: "icon_location_pick")?.withRenderingMode(.alwaysTemplate)
             locationPicker.alternativeLocationIconColor = UIView().tintColor!
-            locationPicker.tableViewHeaderTitle = "Quick locations:".uppercased()
-            locationPicker.tableViewBackgroundColor = UIColor.lightGray.withAlphaComponent(0.1)
+            locationPicker.tableViewBackgroundColor = UIColor(red: 246/255, green: 246/255, blue: 246/255, alpha: 1.0)
         }
     }
     
