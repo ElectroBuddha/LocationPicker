@@ -335,6 +335,7 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
     open var currentLocationSectionTitle: String = "My location".uppercased()
     open var alternativeLocationsSectionTitle: String = "Quick locations:".uppercased()
     fileprivate var searchBarTopConstraint: NSLayoutConstraint!
+    fileprivate var searchBarHeight: CGFloat = 64.0
     
     // MARK: - UI Elements
     
@@ -554,31 +555,26 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         tableView.keyboardDismissMode = .onDrag
         tableView.backgroundColor = tableViewBackgroundColor
         tableView.contentInset.bottom = 50.0
-        tableView.contentInset.top = 64
+        tableView.contentInset.top = searchBarHeight
         // Prevent gap between sections
         tableView.sectionHeaderHeight = 0.0
         tableView.sectionFooterHeight = 0.0
         
         searchBar.delegate = self
         searchBar.placeholder = searchBarPlaceholder
-        let textFieldInsideSearchBar = searchBar.value(forKey: "searchField") as! UITextField
-        textFieldInsideSearchBar.textColor = primaryTextColor
-        
         searchBar.backgroundImage = UIImage()
         searchBar.backgroundColor = tableView.backgroundColor
-        searchBar.sizeToFit()
         
-        let searchBarSubViews = searchBar.subviews.flatMap { $0.subviews }
-        if let searchBarTextField = (searchBarSubViews.filter { $0 is UITextField }).first as? UITextField {
-            searchBarTextField.layer.borderColor = tableView.separatorColor?.withAlphaComponent(0.5).cgColor
-            searchBarTextField.layer.borderWidth = 0.7
-            searchBarTextField.layer.cornerRadius = 10.0
-            
-            searchBarTextField.layer.shadowColor  = UIColor.black.cgColor
-            searchBarTextField.layer.shadowRadius  = 3.0
-            searchBarTextField.layer.shadowOpacity = 0.09
-            searchBarTextField.layer.shadowOffset  = CGSize(width: 0.0, height: 3.0)
-        }
+        let searchBarTextField = searchBar.value(forKey: "searchField") as! UITextField
+        searchBarTextField.textColor = primaryTextColor
+        searchBarTextField.layer.borderColor = tableView.separatorColor?.withAlphaComponent(0.5).cgColor
+        searchBarTextField.layer.borderWidth = 0.7
+        searchBarTextField.layer.cornerRadius = 10.0
+        searchBarTextField.layer.shadowColor  = UIColor.black.cgColor
+        searchBarTextField.layer.shadowRadius  = 3.0
+        searchBarTextField.layer.shadowOpacity = 0.09
+        searchBarTextField.layer.shadowOffset  = CGSize(width: 0.0, height: 3.0)
+        searchBar.sizeToFit()
         
         mapView.isZoomEnabled = isMapViewZoomEnabled
         mapView.isRotateEnabled = false
@@ -610,7 +606,6 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         view.addSubview(mapViewHeaderView)
         mapView.addSubview(pinShadowView)
         mapView.addSubview(pinView)
-
     }
     
     private func layoutViews() {
@@ -623,13 +618,10 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         if #available(iOS 9.0, *) {
             searchBar.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
             searchBar.trailingAnchor.constraint(equalTo: view.trailingAnchor).isActive = true
-            searchBar.heightAnchor.constraint(equalToConstant: 64).isActive = true
+            searchBar.heightAnchor.constraint(equalToConstant: searchBarHeight).isActive = true
             searchBarTopConstraint = searchBar.topAnchor.constraint(equalTo: topLayoutGuide.bottomAnchor)
             searchBarTopConstraint.isActive = true
-            
-            //searchBar.alpha = 0.0
- 
-            //tableView.topAnchor.constraint(equalTo: searchBar.bottomAnchor).isActive = true
+  
             tableView.topAnchor.constraint(equalTo: topLayoutGuide.bottomAnchor).isActive = true
             tableView.leadingAnchor.constraint(equalTo: self.view.leadingAnchor).isActive = true
             tableView.trailingAnchor.constraint(equalTo: self.view.trailingAnchor).isActive = true
@@ -637,7 +629,7 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
             mapView.topAnchor.constraint(equalTo: tableView.bottomAnchor).isActive = true
             mapView.leadingAnchor.constraint(equalTo: tableView.leadingAnchor).isActive = true
             mapView.trailingAnchor.constraint(equalTo: tableView.trailingAnchor).isActive = true
-            mapView.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true //mapView.bottomAnchor.constraint(equalTo: bottomLayoutGuide.topAnchor).isActive = true
+            mapView.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true
             
             mapViewHeaderView.bottomAnchor.constraint(equalTo: mapView.topAnchor).isActive = true
             mapViewHeaderView.leadingAnchor.constraint(equalTo: mapView.leadingAnchor).isActive = true
@@ -655,18 +647,20 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
             pinShadowView.widthAnchor.constraint(equalToConstant: pinShadowViewDiameter).isActive = true
             pinShadowView.heightAnchor.constraint(equalToConstant: pinShadowViewDiameter).isActive = true
         } else {
-            NSLayoutConstraint(item: searchBar, attribute: .top, relatedBy: .equal, toItem: topLayoutGuide, attribute: .bottom, multiplier: 1, constant: 0).isActive = true
             NSLayoutConstraint(item: searchBar, attribute: .leading, relatedBy: .equal, toItem: view, attribute: .leading, multiplier: 1, constant: 0).isActive = true
             NSLayoutConstraint(item: searchBar, attribute: .trailing, relatedBy: .equal, toItem: view, attribute: .trailing, multiplier: 1, constant: 0).isActive = true
+            NSLayoutConstraint(item: searchBar, attribute: .height, relatedBy: .equal, toItem: nil, attribute: .height, multiplier: 1, constant: searchBarHeight).isActive = true
+            searchBarTopConstraint = NSLayoutConstraint(item: searchBar, attribute: .top, relatedBy: .equal, toItem: topLayoutGuide, attribute: .bottom, multiplier: 1, constant: 0)
+            searchBarTopConstraint.isActive = true
             
-            NSLayoutConstraint(item: tableView, attribute: .top, relatedBy: .equal, toItem: searchBar, attribute: .bottom, multiplier: 1, constant: 0).isActive = true
-            NSLayoutConstraint(item: tableView, attribute: .leading, relatedBy: .equal, toItem: searchBar, attribute: .leading, multiplier: 1, constant: 0).isActive = true
-            NSLayoutConstraint(item: tableView, attribute: .trailing, relatedBy: .equal, toItem: searchBar, attribute: .trailing, multiplier: 1, constant: 0).isActive = true
+            NSLayoutConstraint(item: tableView, attribute: .top, relatedBy: .equal, toItem: topLayoutGuide, attribute: .bottom, multiplier: 1, constant: 0).isActive = true
+            NSLayoutConstraint(item: tableView, attribute: .leading, relatedBy: .equal, toItem: view, attribute: .leading, multiplier: 1, constant: 0).isActive = true
+            NSLayoutConstraint(item: tableView, attribute: .trailing, relatedBy: .equal, toItem: view, attribute: .trailing, multiplier: 1, constant: 0).isActive = true
             
             NSLayoutConstraint(item: mapView, attribute: .top, relatedBy: .equal, toItem: tableView, attribute: .bottom, multiplier: 1, constant: 0).isActive = true
             NSLayoutConstraint(item: mapView, attribute: .leading, relatedBy: .equal, toItem: tableView, attribute: .leading, multiplier: 1, constant: 0).isActive = true
             NSLayoutConstraint(item: mapView, attribute: .trailing, relatedBy: .equal, toItem: tableView, attribute: .trailing, multiplier: 1, constant: 0).isActive = true
-            NSLayoutConstraint(item: mapView, attribute: .bottom, relatedBy: .equal, toItem: view, attribute: .bottom, multiplier: 1, constant: 0).isActive = true //NSLayoutConstraint(item: mapView, attribute: .bottom, relatedBy: .equal, toItem: bottomLayoutGuide, attribute: .top, multiplier: 1, constant: 0).isActive = true
+            NSLayoutConstraint(item: mapView, attribute: .bottom, relatedBy: .equal, toItem: view, attribute: .bottom, multiplier: 1, constant: 0).isActive = true
             
             mapViewHeightConstraint = NSLayoutConstraint(item: mapView, attribute: .height, relatedBy: .equal, toItem: nil, attribute: .height, multiplier: 1, constant: 0)
             mapViewHeightConstraint.isActive = true
@@ -680,9 +674,6 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
             NSLayoutConstraint(item: pinShadowView, attribute: .width, relatedBy: .equal, toItem: nil, attribute: .width, multiplier: 1, constant: pinShadowViewDiameter).isActive = true
             NSLayoutConstraint(item: pinShadowView, attribute: .height, relatedBy: .equal, toItem: nil, attribute: .height, multiplier: 1, constant: pinShadowViewDiameter).isActive = true
         }
-        
-//        searchBar.frame = CGRect(x: searchBar.frame.origin.x, y: searchBar.frame.origin.y, width: tableView.frame.size.width, height: 64.0)
-//        tableView.tableHeaderView = searchBar
     }
     
     
@@ -737,7 +728,9 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         mapViewHeightConstraint.constant = mapViewHeight
         
         let coordinateRegion = MKCoordinateRegionMakeWithDistance(coordinate, 0 , distance)
-        mapView.setRegion(coordinateRegion, animated: true)
+        DispatchQueue.main.async { [weak self] in
+            self?.mapView.setRegion(coordinateRegion, animated: true)
+        }
     }
     
     fileprivate func closeMapView() {
@@ -972,11 +965,12 @@ extension LocationPicker {
 extension LocationPicker: UISearchBarDelegate {
     
     public func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
-        if searchText.count > 0 {
+        let text = searchText.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        if text.count > 0 {
             showSearchBarActivityIndicator(false)
             mapViewHeaderView.isActivityIndicatorActive = false
             searchDelayTimer?.invalidate()
-            searchDelayTimer = Timer.scheduledTimer(timeInterval: searchDelayTimerInterval, target: self, selector: #selector(LocationPicker.search), userInfo: ["searchText" : searchText], repeats: false)
+            searchDelayTimer = Timer.scheduledTimer(timeInterval: searchDelayTimerInterval, target: self, selector: #selector(LocationPicker.search), userInfo: ["searchText" : text], repeats: false)
         } else {
             selectedLocationItem = nil
             searchResultLocations.removeAll()
@@ -1012,7 +1006,7 @@ extension LocationPicker: UISearchBarDelegate {
 
             self.showSearchBarActivityIndicator(false)
             
-            guard searchText == self.searchBar.text else {
+            guard searchText == self.searchBar.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) else {
                 // Ensure that the result is valid for the most recent searched text
                 return
             }
@@ -1044,6 +1038,13 @@ extension LocationPicker: UISearchBarDelegate {
             }
             
             self.tableView.reloadData()
+            
+            if self.searchResultLocations.count > 0 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.tableView.scrollToRow(at: IndexPath(row: 0, section: 0), at: .top, animated: true)
+                }
+            }
+            
         })
     }
     
