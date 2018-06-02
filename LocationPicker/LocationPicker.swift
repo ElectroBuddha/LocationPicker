@@ -334,8 +334,7 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
     open var searchResultSectionTitle: String = "Search results".uppercased()
     open var currentLocationSectionTitle: String = "My location".uppercased()
     open var alternativeLocationsSectionTitle: String = "Quick locations:".uppercased()
-    
-    let searchController = UISearchController(searchResultsController: nil)
+    fileprivate var searchBarTopConstraint: NSLayoutConstraint!
     
     // MARK: - UI Elements
     
@@ -505,36 +504,6 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         setupLocationManager()
         setupViews()
         layoutViews()
-        
-//        searchController.searchResultsUpdater = self
-//        searchController.hidesNavigationBarDuringPresentation = false
-//        //searchController.delegate = self
-//        searchController.searchBar.placeholder = searchBarPlaceholder
-//        searchController.dimsBackgroundDuringPresentation = false
-//        searchController.searchBar.sizeToFit()
-//
-//        if #available(iOS 9.1, *) {
-//            searchController.obscuresBackgroundDuringPresentation = false
-//        } else {
-//
-//        }
-
-//        if #available(iOS 11.0, *) {
-//            navigationItem.searchController = searchController
-//        } else {
-//            tableView.tableHeaderView = searchController.searchBar
-//        }
-
-        
-        definesPresentationContext = true
-        
-    }
-    
-    open override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        if #available(iOS 11.0, *) {
-            navigationItem.hidesSearchBarWhenScrolling = false
-        }
     }
     
     open override func viewDidAppear(_ animated: Bool) {
@@ -544,11 +513,6 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
             tableView.selectRow(at: IndexPath(row: index, section: 2), animated: true, scrollPosition: .none)
             tableView(tableView, didSelectRowAt: IndexPath(row: index, section: 2))
         }
-        
-        if #available(iOS 11.0, *) {
-            navigationItem.hidesSearchBarWhenScrolling = true
-        }
-
     }
     
     open override func viewWillDisappear(_ animated: Bool) {
@@ -590,6 +554,7 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         tableView.keyboardDismissMode = .onDrag
         tableView.backgroundColor = tableViewBackgroundColor
         tableView.contentInset.bottom = 50.0
+        tableView.contentInset.top = 64
         // Prevent gap between sections
         tableView.sectionHeaderHeight = 0.0
         tableView.sectionFooterHeight = 0.0
@@ -601,6 +566,7 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         
         searchBar.backgroundImage = UIImage()
         searchBar.backgroundColor = tableView.backgroundColor
+        searchBar.sizeToFit()
         
         let searchBarSubViews = searchBar.subviews.flatMap { $0.subviews }
         if let searchBarTextField = (searchBarSubViews.filter { $0 is UITextField }).first as? UITextField {
@@ -638,8 +604,8 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
             mapView.addGestureRecognizer(panGestureRecognizer)
         }
         
-        view.addSubview(searchBar)
         view.addSubview(tableView)
+        view.addSubview(searchBar)
         view.addSubview(mapView)
         view.addSubview(mapViewHeaderView)
         mapView.addSubview(pinShadowView)
@@ -655,14 +621,16 @@ open class LocationPicker: UIViewController, UIGestureRecognizerDelegate {
         pinShadowView.translatesAutoresizingMaskIntoConstraints = false
         
         if #available(iOS 9.0, *) {
-            searchBar.topAnchor.constraint(equalTo: topLayoutGuide.bottomAnchor).isActive = true
             searchBar.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
             searchBar.trailingAnchor.constraint(equalTo: view.trailingAnchor).isActive = true
+            searchBar.heightAnchor.constraint(equalToConstant: 64).isActive = true
+            searchBarTopConstraint = searchBar.topAnchor.constraint(equalTo: topLayoutGuide.bottomAnchor)
+            searchBarTopConstraint.isActive = true
             
             //searchBar.alpha = 0.0
  
-            tableView.topAnchor.constraint(equalTo: searchBar.bottomAnchor).isActive = true
-            //tableView.topAnchor.constraint(equalTo: topLayoutGuide.bottomAnchor).isActive = true
+            //tableView.topAnchor.constraint(equalTo: searchBar.bottomAnchor).isActive = true
+            tableView.topAnchor.constraint(equalTo: topLayoutGuide.bottomAnchor).isActive = true
             tableView.leadingAnchor.constraint(equalTo: self.view.leadingAnchor).isActive = true
             tableView.trailingAnchor.constraint(equalTo: self.view.trailingAnchor).isActive = true
             
@@ -999,16 +967,6 @@ extension LocationPicker {
     
 }
 
-extension LocationPicker: UISearchControllerDelegate {
-    
-}
-
-extension LocationPicker: UISearchResultsUpdating {
-    public func updateSearchResults(for searchController: UISearchController) {
-        // TODO
-    }
-}
-
 // MARK: Search Bar Delegate
 
 extension LocationPicker: UISearchBarDelegate {
@@ -1124,20 +1082,14 @@ extension LocationPicker: UISearchBarDelegate {
 // MARK: Table View Delegate and Data Source
 
 extension LocationPicker: UITableViewDelegate, UITableViewDataSource {
-    
     public func scrollViewDidScroll(_ scrollView: UIScrollView) {
-//        print("contentOffset: \(scrollView.contentOffset.y); searchBarOrigin: \(searchBar.frame.origin.y)")
-//
-//        var searchBarOffsetY: CGFloat = 0.0
-//
-//        if scrollView.contentOffset.y < 0 {
-//            //searchBarOffsetY = scrollView.contentOffset.y * (-1)
-//            searchBarOffsetY = 0.0
-//        }
-//
-//        searchBar.frame = CGRect(x: searchBar.frame.origin.x, y: searchBarOffsetY, width: searchBar.frame.size.width, height: searchBar.frame.size.height)
-//        //searchBar.layoutIfNeeded()
-//        print("searchBar.frame \(searchBar.frame)")
+        var searchBarOffsetY: CGFloat = scrollView.contentOffset.y + scrollView.contentInset.top
+
+        if scrollView.contentOffset.y < -scrollView.contentInset.top {
+            searchBarOffsetY = 0.0
+        }
+        
+        searchBarTopConstraint.constant = -searchBarOffsetY
     }
     
     public func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
